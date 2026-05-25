@@ -101,7 +101,3 @@ A method "wins" a slot if it achieves the highest retention across all methods a
   year={2026}
 }
 ```
-
-## License
-
-Apache 2.0
