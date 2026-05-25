@@ -1,0 +1,88 @@
+# Example configuration for SignGraph merging experiments.
+#
+# Adapt paths to your local LoRA adapters or fine-tuned checkpoints.
+# For reproducing paper results, point to adapters fine-tuned on GLUE tasks
+# from a common base model.
+
+base_model_name: "Qwen/Qwen2.5-0.5B-Instruct"
+
+# Adapters to merge. Each must have 'name' and 'path'.
+# mode: "lora" (default) for PEFT/LoRA adapters, "full" for full fine-tuned checkpoints.
+adapters:
+  - name: "cola"
+    path: "/path/to/cola_adapter"
+    mode: "lora"
+  - name: "sst2"
+    path: "/path/to/sst2_adapter"
+    mode: "lora"
+  - name: "mnli"
+    path: "/path/to/mnli_adapter"
+    mode: "lora"
+  - name: "qnli"
+    path: "/path/to/qnli_adapter"
+    mode: "lora"
+  - name: "qqp"
+    path: "/path/to/qqp_adapter"
+    mode: "lora"
+  - name: "rte"
+    path: "/path/to/rte_adapter"
+    mode: "lora"
+
+# Per-adapter weights (uniform by default)
+adapter_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+# Scaling coefficient lambda applied to merged task vector
+scaling_coefficient: 1.0
+
+# Merging methods to run
+methods:
+  - sign_graph
+  - ties
+  - dare_ties
+  - della
+  - consensus_ties
+  - task_arithmetic
+  - simple_average
+  - breadcrumbs
+
+# Density values to sweep (each method evaluated at each density)
+densities: [0.01, 0.05, 0.50, 0.99]
+
+# Individual adapter scores (for retention computation).
+# Fill in after evaluating individual adapters on their respective tasks.
+# Format: task_name -> score (e.g., F1 for classification)
+individual_scores:
+  cola: 0.85
+  sst2: 0.95
+  mnli: 0.88
+  qnli: 0.92
+  qqp: 0.90
+  rte: 0.80
+
+# Evaluation configuration
+evaluation:
+  tasks:
+    - name: "cola"
+      type: "classification"
+      dataset_path: "glue"
+      dataset_name: "cola"
+      split: "validation"
+      prompt_column: "sentence"
+      label_column: "label"
+      labels: ["unacceptable", "acceptable"]
+      max_new_tokens: 8
+      num_samples: 200
+
+    - name: "sst2"
+      type: "classification"
+      dataset_path: "glue"
+      dataset_name: "sst2"
+      split: "validation"
+      prompt_column: "sentence"
+      label_column: "label"
+      labels: ["negative", "positive"]
+      max_new_tokens: 8
+      num_samples: 200
+
+# Output directory for results
+output_dir: "results"
