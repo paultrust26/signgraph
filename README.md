@@ -97,7 +97,7 @@ A method "wins" a slot if it achieves the highest retention across all methods a
 ```bibtex
 @inproceedings{signgraph2025,
   title={SignGraph: Sign-Pattern Graph Diffusion for Model Merging},
-  author={Paul Trusy},
+  author={Paul Trust},
   year={2026}
 }
 ```
