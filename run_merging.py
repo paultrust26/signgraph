@@ -91,9 +91,7 @@ def compute_task_vectors(
             gc.collect()
 
         elif mode == "full":
-            ft_model = AutoModelForCausalLM.from_pretrained(
-                adapter_path, torch_dtype=torch.bfloat16, device_map="cpu"
-            )
+            ft_model = AutoModelForCausalLM.from_pretrained(adapter_path, torch_dtype=torch.bfloat16, device_map="cpu")
             delta = OrderedDict()
             exclude = cfg.get("exclude_patterns", ["embed", "lm_head"])
             for name, param in ft_model.named_parameters():
@@ -196,9 +194,19 @@ def run_experiment(config: Dict[str, Any]):
     """Run the full merging experiment."""
     base_model_name = config["base_model_name"]
     adapter_configs = config["adapters"]
-    methods = config.get("methods", ["sign_graph", "ties", "dare_ties", "della",
-                                      "consensus_ties", "task_arithmetic",
-                                      "simple_average", "breadcrumbs"])
+    methods = config.get(
+        "methods",
+        [
+            "sign_graph",
+            "ties",
+            "dare_ties",
+            "della",
+            "consensus_ties",
+            "task_arithmetic",
+            "simple_average",
+            "breadcrumbs",
+        ],
+    )
     densities = config.get("densities", [0.01, 0.05, 0.50, 0.99])
     scaling_coefficient = config.get("scaling_coefficient", 1.0)
     adapter_weights = config.get("adapter_weights", [1.0] * len(adapter_configs))
@@ -215,9 +223,7 @@ def run_experiment(config: Dict[str, Any]):
     # Load base model
     print("\nLoading base model...")
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-    base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_name, torch_dtype=torch.bfloat16, device_map="cpu"
-    )
+    base_model = AutoModelForCausalLM.from_pretrained(base_model_name, torch_dtype=torch.bfloat16, device_map="cpu")
 
     # Compute task vectors
     print("\nComputing task vectors...")
@@ -237,14 +243,12 @@ def run_experiment(config: Dict[str, Any]):
             if method in density_independent and density != densities[0]:
                 continue
 
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"Method: {method}, Density: {density}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
 
             try:
-                merged_delta = merge_task_vectors(
-                    task_vectors, param_names, method, adapter_weights, density, device
-                )
+                merged_delta = merge_task_vectors(task_vectors, param_names, method, adapter_weights, density, device)
 
                 # Reload base model and apply delta
                 print("  Applying merged delta to base model...")
@@ -258,9 +262,7 @@ def run_experiment(config: Dict[str, Any]):
                 # Evaluate
                 print("  Evaluating...")
                 eval_config = config.get("evaluation", {})
-                eval_results = evaluate_merged_model(
-                    eval_model, tokenizer, eval_config, device
-                )
+                eval_results = evaluate_merged_model(eval_model, tokenizer, eval_config, device)
 
                 result_entry = {
                     "method": method,
@@ -278,13 +280,16 @@ def run_experiment(config: Dict[str, Any]):
 
             except Exception as e:
                 import traceback
+
                 print(f"  ERROR: {e}")
                 traceback.print_exc()
-                results["results"].append({
-                    "method": method,
-                    "density": density,
-                    "error": str(e),
-                })
+                results["results"].append(
+                    {
+                        "method": method,
+                        "density": density,
+                        "error": str(e),
+                    }
+                )
 
     # Compute retention scores
     results = compute_retention(results, config)

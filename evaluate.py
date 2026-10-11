@@ -51,17 +51,11 @@ def evaluate_merged_model(
 
         try:
             if task_type == "classification":
-                score = evaluate_classification(
-                    model, tokenizer, task_cfg, device, num_samples
-                )
+                score = evaluate_classification(model, tokenizer, task_cfg, device, num_samples)
             elif task_type == "code_generation":
-                score = evaluate_code_generation(
-                    model, tokenizer, task_cfg, device, num_samples
-                )
+                score = evaluate_code_generation(model, tokenizer, task_cfg, device, num_samples)
             elif task_type == "translation":
-                score = evaluate_translation(
-                    model, tokenizer, task_cfg, device, num_samples
-                )
+                score = evaluate_translation(model, tokenizer, task_cfg, device, num_samples)
             else:
                 print(f"      Unknown task type: {task_type}, skipping")
                 continue
@@ -129,7 +123,7 @@ def evaluate_classification(
                 do_sample=False,
             )
 
-        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True)
         predicted = extract_label(generated, labels)
 
         predictions.append(predicted)
@@ -172,6 +166,7 @@ def evaluate_code_generation(
         test_cases = item.get(tests_col, [])
         if isinstance(test_cases, str):
             import json as _json
+
             try:
                 test_cases = _json.loads(test_cases)
             except Exception:
@@ -194,7 +189,7 @@ def evaluate_code_generation(
                 do_sample=False,
             )
 
-        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True)
         code = extract_code(generated)
 
         for test in test_cases:
@@ -206,7 +201,9 @@ def evaluate_code_generation(
             try:
                 result = subprocess.run(
                     [sys.executable, "-c", full_code],
-                    capture_output=True, timeout=10, text=True,
+                    capture_output=True,
+                    timeout=10,
+                    text=True,
                 )
                 if result.returncode == 0:
                     total_passed += 1
@@ -260,7 +257,7 @@ def evaluate_translation(
                 do_sample=False,
             )
 
-        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True)
         score = compute_rouge1(generated, reference)
         rouge_scores.append(score)
 

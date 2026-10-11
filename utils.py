@@ -147,9 +147,7 @@ def della_magprune_pruning(tensor: torch.Tensor, density: float, epsilon: float 
     return masked.to(tensor.dtype).reshape(orig_shape)
 
 
-def calculate_majority_sign_mask(
-    tensor: torch.Tensor, method: Literal["total", "frequency"] = "total"
-) -> torch.Tensor:
+def calculate_majority_sign_mask(tensor: torch.Tensor, method: Literal["total", "frequency"] = "total") -> torch.Tensor:
     """Compute the majority sign mask across stacked task tensors.
 
     For each parameter position, determines which adapters agree with the

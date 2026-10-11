@@ -67,6 +67,9 @@ def sign_graph(
     consensus_weight: float = 0.3,
     correlation_threshold: float = -0.7,
     steepness: float = 10.0,
+    magnitude_weighted_edges: bool = False,
+    skip_graph: bool = False,
+    hard_suppression: bool = False,
 ) -> torch.Tensor:
     """Sign-Pattern Graph Diffusion for Model Merging.
 
@@ -85,6 +88,12 @@ def sign_graph(
         consensus_weight: Strength of the consensus shift (beta).
         correlation_threshold: Threshold for sign-flip detection (gamma).
         steepness: Sigmoid steepness for soft suppression.
+        magnitude_weighted_edges: Ablation. Weight edges by sqrt of the cluster
+            magnitude product instead of pure Hamming distance.
+        skip_graph: Ablation. Skip the Hamming graph, PPR diffusion, and
+            consensus shift (clustering and suppression only).
+        hard_suppression: Ablation. Replace the soft sigmoid gate with hard
+            thresholding (keep clusters at or above the density threshold).
 
     Returns:
         Merged tensor with the same shape and dtype as the input task tensors.
@@ -105,7 +114,7 @@ def sign_graph(
             flat_initial.add_(aligned[i].flatten().float(), alpha=w_list[i])
         return flat_initial.reshape(orig_shape).to(orig_dtype)
 
-    n_clusters = 2 ** N
+    n_clusters = 2**N
 
     # Stage 1: Weighted average + sign fingerprint clustering (single pass)
     flat_initial = torch.zeros(n_params, device=device)
@@ -115,7 +124,7 @@ def sign_graph(
         flat_i = aligned[i].flatten().float()
         flat_initial.add_(flat_i, alpha=w_list[i])
         digit = (flat_i > 0).long()
-        cluster_ids.add_(digit * (2 ** i))
+        cluster_ids.add_(digit * (2**i))
         del flat_i, digit
 
     # Cluster statistics
@@ -131,37 +140,49 @@ def sign_graph(
     cluster_magnitude = torch.zeros(n_clusters, device=device)
     cluster_magnitude[non_empty] = cluster_mag_sums[non_empty] / cluster_counts[non_empty]
 
-    # Stage 2: Build Hamming-distance cluster graph
-    ids = torch.arange(n_clusters, device=device)
-    hamming = torch.zeros(n_clusters, n_clusters, device=device)
-    xor_matrix = ids.unsqueeze(1) ^ ids.unsqueeze(0)
-    temp = xor_matrix.clone()
-    for _ in range(N):
-        hamming += (temp & 1).float()
-        temp = temp >> 1
+    # Cluster importance and threshold are needed by suppression, so they stay
+    # outside the graph branch. Only the graph and consensus steps are skipped.
+    if skip_graph:
+        result = flat_initial
+    else:
+        # Stage 2: Build Hamming-distance cluster graph
+        ids = torch.arange(n_clusters, device=device)
+        hamming = torch.zeros(n_clusters, n_clusters, device=device)
+        xor_matrix = ids.unsqueeze(1) ^ ids.unsqueeze(0)
+        temp = xor_matrix.clone()
+        for _ in range(N):
+            hamming += (temp & 1).float()
+            temp = temp >> 1
 
-    edge_mask = (hamming > 0) & (hamming <= max_hamming) & non_empty.unsqueeze(0) & non_empty.unsqueeze(1)
-    transition = torch.zeros_like(hamming)
-    transition[edge_mask] = 1.0 / hamming[edge_mask]
-    row_sums = transition.sum(dim=1, keepdim=True).clamp(min=1e-8)
-    transition = transition / row_sums
+        edge_mask = (hamming > 0) & (hamming <= max_hamming) & non_empty.unsqueeze(0) & non_empty.unsqueeze(1)
+        transition = torch.zeros_like(hamming)
+        if magnitude_weighted_edges:
+            mag_product = cluster_magnitude.unsqueeze(0) * cluster_magnitude.unsqueeze(1)
+            transition[edge_mask] = mag_product[edge_mask].sqrt() / hamming[edge_mask]
+        else:
+            transition[edge_mask] = 1.0 / hamming[edge_mask]
+        row_sums = transition.sum(dim=1, keepdim=True).clamp(min=1e-8)
+        transition = transition / row_sums
 
-    # Stage 3: Personalized PageRank diffusion on cluster means
-    current = cluster_means.clone()
-    for _ in range(num_diffusion_steps):
-        diffused = transition @ current
-        current = restart_prob * cluster_means + (1.0 - restart_prob) * diffused
+        # Stage 3: Personalized PageRank diffusion on cluster means
+        current = cluster_means.clone()
+        for _ in range(num_diffusion_steps):
+            diffused = transition @ current
+            current = restart_prob * cluster_means + (1.0 - restart_prob) * diffused
 
-    # Consensus shift
-    cluster_shift = current - cluster_means
-    param_shift = cluster_shift[cluster_ids]
-    result = flat_initial + consensus_weight * param_shift
+        # Consensus shift
+        cluster_shift = current - cluster_means
+        param_shift = cluster_shift[cluster_ids]
+        result = flat_initial + consensus_weight * param_shift
 
     # Stage 4: Soft suppression via per-cluster importance
     cluster_importance = cluster_counts * cluster_magnitude
     threshold = weighted_quantile_threshold(cluster_importance, cluster_counts, non_empty, max(0.0, 1.0 - density))
     param_importance = cluster_importance[cluster_ids]
-    suppression = torch.sigmoid(steepness * (param_importance - threshold))
+    if hard_suppression:
+        suppression = (param_importance >= threshold).float()
+    else:
+        suppression = torch.sigmoid(steepness * (param_importance - threshold))
     result = result * suppression
 
     return result.reshape(orig_shape).to(orig_dtype)
@@ -354,7 +375,7 @@ def fisher_merging(
         fisher_norms = []
         for i in range(N):
             norm_sq = fisher_weights[i].float().pow(2).sum().item()
-            fisher_norms.append(norm_sq ** 0.5 + minimal_weight)
+            fisher_norms.append(norm_sq**0.5 + minimal_weight)
         inv_norms = [1.0 / n for n in fisher_norms]
         norm_sum = sum(inv_norms)
         scale_factors = [inv_n / norm_sum for inv_n in inv_norms]

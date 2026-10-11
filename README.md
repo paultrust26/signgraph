@@ -2,6 +2,12 @@
 
 Official code for the paper *"SignGraph: Sign-Pattern Graph Diffusion for Model Merging"*.
 
+📄 **Paper:** [OpenReview](https://openreview.net/forum?id=SV5VdwTd0q)
+
+![SignGraph overview](figures/signgraph_overview.png)
+
+*Figure: (a) task vectors, (b) parameters grouped into sign-pattern clusters, (c) PageRank diffusion across the Hamming-distance graph, (d) soft-gated merged task vector.*
+
 ## Abstract
 
 Model merging combines several task specific finetuned models into a single multitask model without retraining. Existing methods such as TIES, DARE, and DELLA resolve conflicts between task vectors through magnitude pruning and sign voting, and they treat each parameter largely in isolation. SignGraph first aligns task vectors whose signs are flipped relative to one another, then groups parameters by their N bit sign fingerprint across task vectors. It builds a Hamming distance graph over these clusters and runs personalized PageRank diffusion to propagate consensus between related sign patterns. A soft sigmoid gate, weighted by each cluster's size and mean magnitude and controlled by a single density parameter, then suppresses weak clusters. All other hyperparameters use fixed defaults, so density is the only value that needs tuning. We evaluate SignGraph against existing merging baselines on classification, code, and translation tasks, reporting retention relative to each individually finetuned model.
@@ -18,6 +24,12 @@ SignGraph merges multiple task-specific fine-tuned models into a single multi-ta
 
 ```bash
 pip install -r requirements.txt
+```
+
+Running the tests (from the repository root):
+
+```bash
+python -m pytest tests/
 ```
 
 ## Quick Start
@@ -45,6 +57,10 @@ merged = sign_graph(task_tensors, weights, density)
 python run_merging.py --config configs/example.yaml
 ```
 
+`run_merging.py` loads the base model and adapters listed in the config, merges them with each method at each density, evaluates the merged models, and writes results to `output_dir` (default `results/`).
+
+> **Scope:** this repository contains the merging algorithms and the evaluation code. The experiment infrastructure used for the paper's runs (cluster job orchestration, cloud storage, and experiment tracking) is not included.
+
 ## Methods Implemented
 
 | Method | Paper | Key Idea |
@@ -58,6 +74,16 @@ python run_merging.py --config configs/example.yaml
 | Task Arithmetic | Ilharco et al. 2023 | Weighted sum of task vectors |
 | Simple Average | Wortsman et al. 2022 | Normalized weighted average |
 | Model Breadcrumbs | Davari & Belilovsky 2023 | Outlier + small-magnitude pruning |
+
+## Ablation Flags
+
+`sign_graph` exposes the three ablations from the paper's ablation study. All default to off.
+
+| Flag | Paper ablation | Effect |
+|------|----------------|--------|
+| `skip_graph=True` | Remove graph diffusion | Clustering and suppression only; no Hamming graph, PPR, or consensus shift |
+| `hard_suppression=True` | Remove soft suppression | Hard thresholding instead of the sigmoid gate |
+| `magnitude_weighted_edges=True` | Alternative graph | Edge weights scaled by cluster magnitude instead of pure Hamming distance |
 
 ## SignGraph Hyperparameters
 
@@ -76,15 +102,22 @@ Only `density` requires tuning; all others use fixed defaults.
 ## File Structure
 
 ```
-code/
-├── merge_methods.py    # All merging algorithms (standalone, no dependencies beyond PyTorch)
-├── run_merging.py      # Full experiment pipeline (load models, merge, evaluate)
+.
+├── merge_methods.py    # SignGraph and the baseline merging algorithms (PyTorch only)
+├── utils.py            # Helpers used by the merging methods
+├── run_merging.py      # Full pipeline: load adapters, merge, evaluate
 ├── evaluate.py         # Task-specific evaluation (classification, code, translation)
 ├── configs/
 │   └── example.yaml    # Example configuration
+├── figures/            # Figures used in this README
+├── tests/
+│   └── test_merge_methods.py  # Each method runs; ablation flags change the output
 ├── requirements.txt    # Python dependencies
+├── LICENSE             # MIT
 └── README.md           # This file
 ```
+
+`merge_methods.py`, `utils.py`, and `evaluate.py` sit at the top level because `run_merging.py` imports them by module name.
 
 ## Evaluation
 
@@ -99,9 +132,13 @@ A method "wins" a slot if it achieves the highest retention across all methods a
 ## Citation
 
 ```bibtex
-@inproceedings{signgraph2025,
+@inproceedings{signgraph2026,
   title={SignGraph: Sign-Pattern Graph Diffusion for Model Merging},
   author={Paul Trust},
   year={2026}
 }
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
