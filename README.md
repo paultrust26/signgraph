@@ -2,6 +2,10 @@
 
 Official code for the paper *"SignGraph: Sign-Pattern Graph Diffusion for Model Merging"*.
 
+## Abstract
+
+Model merging combines several task specific finetuned models into a single multitask model without retraining. Existing methods such as TIES, DARE, and DELLA resolve conflicts between task vectors through magnitude pruning and sign voting, and they treat each parameter largely in isolation. SignGraph first aligns task vectors whose signs are flipped relative to one another, then groups parameters by their N bit sign fingerprint across task vectors. It builds a Hamming distance graph over these clusters and runs personalized PageRank diffusion to propagate consensus between related sign patterns. A soft sigmoid gate, weighted by each cluster's size and mean magnitude and controlled by a single density parameter, then suppresses weak clusters. All other hyperparameters use fixed defaults, so density is the only value that needs tuning. We evaluate SignGraph against existing merging baselines on classification, code, and translation tasks, reporting retention relative to each individually finetuned model.
+
 ## Overview
 
 SignGraph merges multiple task-specific fine-tuned models into a single multi-task model by:
